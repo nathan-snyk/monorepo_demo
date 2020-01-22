@@ -2,6 +2,9 @@ import * as fs from 'fs';
 import * as pathLib from 'path';
 import * as _ from 'lodash';
 import { detectPackageManagerFromFile } from './detect';
+import * as debugModule from 'debug';
+const debug = debugModule('snyk');
+
 // TODO: use util.promisify once we move to node 8
 
 /**
@@ -188,6 +191,9 @@ function chooseBestManifest(
       return packageJson.path;
     }
     case 'rubygems': {
+      debug(
+        'Encountered multiple gem manifest files, defaulting to "Gemfile.lock"',
+      );
       const defaultManifest = files.filter((path) =>
         ['Gemfile.lock'].includes(path.base),
       )[0];
@@ -196,6 +202,13 @@ function chooseBestManifest(
     case 'cocoapods': {
       const defaultManifest = files.filter((path) =>
         ['Podfile'].includes(path.base),
+      )[0];
+      return defaultManifest.path;
+    }
+    case 'pip': {
+      debug('Encountered multiple pip manifest files, defaulting to "Pipfile"');
+      const defaultManifest = files.filter((path) =>
+        ['Pipfile'].includes(path.base),
       )[0];
       return defaultManifest.path;
     }

@@ -16,16 +16,35 @@ export const AllProjectsTests: AcceptanceTests = {
       utils,
     ) => async (t) => {
       utils.chdirWorkspaces();
-      const spyPlugin = sinon.spy(params.plugins, 'loadPlugin');
-      t.teardown(spyPlugin.restore);
+
+      // mock plugin because CI tooling doesn't have python installed
+      const mockPlugin = {
+        async inspect() {
+          return {
+            plugin: {
+              targetFile: 'requirements.txt',
+              name: 'snyk-python-plugin',
+            },
+            package: {},
+          };
+        },
+      };
+      const loadPlugin = sinon.stub(params.plugins, 'loadPlugin');
+      loadPlugin.withArgs('pip').returns(mockPlugin);
+      loadPlugin.callThrough();
+
+      t.teardown(loadPlugin.restore);
 
       const result = await params.cli.monitor('mono-repo-project', {
         allProjects: true,
         detectionDepth: 1,
       });
-      t.ok(spyPlugin.withArgs('rubygems').calledOnce, 'calls rubygems plugin');
-      t.ok(spyPlugin.withArgs('npm').calledOnce, 'calls npm plugin');
-      t.ok(spyPlugin.withArgs('maven').calledOnce, 'calls maven plugin');
+
+      t.ok(loadPlugin.withArgs('rubygems').calledOnce, 'calls rubygems plugin');
+      t.ok(loadPlugin.withArgs('npm').calledOnce, 'calls npm plugin');
+      t.ok(loadPlugin.withArgs('maven').calledOnce, 'calls maven plugin');
+      t.ok(loadPlugin.withArgs('pip').calledOnce, 'calls pip plugin');
+
       // npm
       t.match(
         result,
@@ -41,6 +60,10 @@ export const AllProjectsTests: AcceptanceTests = {
 
       // maven
       t.match(result, 'maven/some/project-id', 'maven project was monitored ');
+
+      // python
+      t.match(result, 'pip/some/project-id', 'python project was monitored ');
+
       // Pop all calls to server and filter out calls to `featureFlag` endpoint
       const requests = params.server
         .popRequests(4)
@@ -49,7 +72,6 @@ export const AllProjectsTests: AcceptanceTests = {
 
       requests.forEach((req) => {
         t.match(req.url, '/monitor/', 'puts at correct url');
-        t.notOk(req.body.targetFile, "doesn't send the targetFile");
         t.equal(req.method, 'PUT', 'makes PUT request');
         t.equal(
           req.headers['x-snyk-cli-version'],
@@ -139,16 +161,31 @@ export const AllProjectsTests: AcceptanceTests = {
       utils,
     ) => async (t) => {
       utils.chdirWorkspaces();
-      const spyPlugin = sinon.spy(params.plugins, 'loadPlugin');
-      t.teardown(spyPlugin.restore);
+
+      // mock plugin because CI tooling doesn't have python installed
+      const mockPlugin = {
+        async inspect() {
+          return {
+            plugin: {
+              targetFile: 'Pipfile',
+              name: 'snyk-python-plugin',
+            },
+            package: {},
+          };
+        },
+      };
+      const loadPlugin = sinon.stub(params.plugins, 'loadPlugin');
+      loadPlugin.withArgs('pip').returns(mockPlugin);
+      loadPlugin.callThrough();
 
       await params.cli.monitor('mono-repo-project', {
         allProjects: true,
         detectionDepth: 1,
+        skipUnresolved: true,
       });
       // Pop all calls to server and filter out calls to `featureFlag` endpoint
-      const [rubyAll, npmAll, mavenAll] = params.server
-        .popRequests(4)
+      const [rubyAll, pipAll, npmAll, mavenAll] = params.server
+        .popRequests(5)
         .filter((req) => req.url.includes('/monitor/'));
 
       // Ruby
@@ -175,6 +212,15 @@ export const AllProjectsTests: AcceptanceTests = {
         .popRequests(2)
         .filter((req) => req.url.includes('/monitor/'));
 
+      // pip
+      await params.cli.monitor('mono-repo-project', {
+        file: 'Pipfile',
+        skipUnresolved: true,
+      });
+      const [requestsPip] = params.server
+        .popRequests(2)
+        .filter((req) => req.url.includes('/monitor/'));
+
       // Ruby project
 
       t.deepEqual(
@@ -189,6 +235,14 @@ export const AllProjectsTests: AcceptanceTests = {
         npmAll.body,
         requestsNpm.body,
         'Same body for --all-projects and --file=package-lock.json',
+      );
+
+      // Pip project
+
+      t.deepEqual(
+        pipAll.body,
+        requestsPip.body,
+        'Same body for --all-projects and --file=Pipfile',
       );
 
       // Maven project
@@ -240,6 +294,7 @@ export const AllProjectsTests: AcceptanceTests = {
         const response = await params.cli.monitor('mono-repo-project', {
           json: true,
           allProjects: true,
+          skipUnresolved: true,
         });
         JSON.parse(response).forEach((res) => {
           if (_.isObject(res)) {

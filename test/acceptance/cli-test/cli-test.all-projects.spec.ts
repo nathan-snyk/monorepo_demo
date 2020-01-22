@@ -17,10 +17,12 @@ export const AllProjectsTests: AcceptanceTests = {
       const result = await params.cli.test('mono-repo-project', {
         allProjects: true,
         detectionDepth: 1,
+        skipUnresolved: true,
       });
       t.ok(spyPlugin.withArgs('rubygems').calledOnce, 'calls rubygems plugin');
       t.ok(spyPlugin.withArgs('npm').calledOnce, 'calls npm plugin');
       t.ok(spyPlugin.withArgs('maven').calledOnce, 'calls maven plugin');
+      t.ok(spyPlugin.withArgs('pip').calledOnce, 'calls pip plugin');
 
       params.server.popRequests(3).forEach((req) => {
         t.equal(req.method, 'POST', 'makes POST request');
@@ -33,11 +35,12 @@ export const AllProjectsTests: AcceptanceTests = {
         t.ok(req.body.depGraph, 'body contains depGraph');
         t.match(
           req.body.depGraph.pkgManager.name,
-          /(npm|rubygems|maven)/,
+          /(npm|rubygems|maven|pip)/,
           'depGraph has package manager',
         );
       });
       // results should contain test results from both package managers
+
       t.match(
         result,
         'Package manager:   rubygems',
@@ -69,9 +72,14 @@ export const AllProjectsTests: AcceptanceTests = {
         'Target file:       pom.xml',
         'contains target file pom.xml',
       );
+      t.match(
+        result,
+        'Target file:       Pipfile',
+        'contains target file Pipfile',
+      );
     },
 
-    '`test --all-projects and --file payloads are the same`': (
+    '`test mono-repo-project --all-projects and --file payloads are the same`': (
       params,
       utils,
     ) => async (t) => {
@@ -82,12 +90,20 @@ export const AllProjectsTests: AcceptanceTests = {
       await params.cli.test('mono-repo-project', {
         allProjects: true,
         detectionDepth: 1,
+        skipUnresolved: true,
       });
       const [
         rubyAllProjectsBody,
+        pipAllProjectsBody,
         npmAllProjectsBody,
         mavenAllProjectsBody,
-      ] = params.server.popRequests(3).map((req) => req.body);
+      ] = params.server.popRequests(4).map((req) => req.body);
+
+      await params.cli.test('mono-repo-project', {
+        file: 'Pipfile',
+        skipUnresolved: true,
+      });
+      const { body: pipFileBody } = params.server.popRequest();
 
       await params.cli.test('mono-repo-project', {
         file: 'Gemfile.lock',
@@ -103,6 +119,12 @@ export const AllProjectsTests: AcceptanceTests = {
         file: 'pom.xml',
       });
       const { body: mavenFileBody } = params.server.popRequest();
+
+      t.same(
+        pipAllProjectsBody,
+        pipFileBody,
+        'Same body for --all-projects and --file=Pipfile',
+      );
 
       t.same(
         rubyAllProjectsBody,
