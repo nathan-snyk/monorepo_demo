@@ -66,11 +66,18 @@ export const AllProjectsTests: AcceptanceTests = {
       t.equal(requests.length, 4, 'Correct amount of monitor requests');
 
       requests.forEach((req) => {
-        t.match(req.url, /\/api\/v1\/monitor\/(npm\/graph|rubygems|maven|pip)/, 'puts at correct url');
+        t.match(
+          req.url,
+          /\/api\/v1\/monitor\/(npm\/graph|rubygems|maven|pip)/,
+          'puts at correct url',
+        );
         if (req.url === '/api/v1/monitor/pip') {
           t.equals(req.body.targetFile, 'Pipfile', 'sends targetFile=Pipfile');
         } else {
-          t.notOk(req.body.targetFile, `doesn't send the targetFile for ${req.url}`);
+          t.notOk(
+            req.body.targetFile,
+            `doesn't send the targetFile for ${req.url}`,
+          );
         }
         t.equal(req.method, 'PUT', 'makes PUT request');
         t.equal(
