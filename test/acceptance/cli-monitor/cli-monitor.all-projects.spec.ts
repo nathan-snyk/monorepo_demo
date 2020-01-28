@@ -16,13 +16,12 @@ export const AllProjectsTests: AcceptanceTests = {
       utils,
     ) => async (t) => {
       utils.chdirWorkspaces();
-
-      // mock plugin because CI tooling doesn't have python installed
+      // mock python plugin becuase CI tooling doesn't have pipenv installed
       const mockPlugin = {
         async inspect() {
           return {
             plugin: {
-              targetFile: 'requirements.txt',
+              targetFile: 'Pipfile',
               name: 'snyk-python-plugin',
             },
             package: {},
@@ -30,20 +29,18 @@ export const AllProjectsTests: AcceptanceTests = {
         },
       };
       const loadPlugin = sinon.stub(params.plugins, 'loadPlugin');
+      t.teardown(loadPlugin.restore);
       loadPlugin.withArgs('pip').returns(mockPlugin);
       loadPlugin.callThrough();
-
-      t.teardown(loadPlugin.restore);
 
       const result = await params.cli.monitor('mono-repo-project', {
         allProjects: true,
         detectionDepth: 1,
       });
-
       t.ok(loadPlugin.withArgs('rubygems').calledOnce, 'calls rubygems plugin');
       t.ok(loadPlugin.withArgs('npm').calledOnce, 'calls npm plugin');
       t.ok(loadPlugin.withArgs('maven').calledOnce, 'calls maven plugin');
-      t.ok(loadPlugin.withArgs('pip').calledOnce, 'calls pip plugin');
+      t.ok(loadPlugin.withArgs('pip').calledOnce, 'calls python plugin');
 
       // npm
       t.match(
@@ -57,21 +54,24 @@ export const AllProjectsTests: AcceptanceTests = {
         'rubygems/some/project-id',
         'rubygems project was monitored',
       );
-
       // maven
       t.match(result, 'maven/some/project-id', 'maven project was monitored ');
-
       // python
       t.match(result, 'pip/some/project-id', 'python project was monitored ');
 
       // Pop all calls to server and filter out calls to `featureFlag` endpoint
       const requests = params.server
-        .popRequests(4)
+        .popRequests(5)
         .filter((req) => req.url.includes('/monitor/'));
-      t.equal(requests.length, 3, 'Correct amount of monitor requests');
+      t.equal(requests.length, 4, 'Correct amount of monitor requests');
 
       requests.forEach((req) => {
-        t.match(req.url, '/monitor/', 'puts at correct url');
+        t.match(req.url, /\/api\/v1\/monitor\/(npm\/graph|rubygems|maven|pip)/, 'puts at correct url');
+        if (req.url === '/api/v1/monitor/pip') {
+          t.equals(req.body.targetFile, 'Pipfile', 'sends targetFile=Pipfile');
+        } else {
+          t.notOk(req.body.targetFile, `doesn't send the targetFile for ${req.url}`);
+        }
         t.equal(req.method, 'PUT', 'makes PUT request');
         t.equal(
           req.headers['x-snyk-cli-version'],
@@ -156,13 +156,13 @@ export const AllProjectsTests: AcceptanceTests = {
         'sends version number',
       );
     },
-    '`monitor mono-repo-project with lockfiles --all-projects and without same meta`': (
+    '`monitor mono-repo-project --all-projects sends same payload as --file`': (
       params,
       utils,
     ) => async (t) => {
       utils.chdirWorkspaces();
 
-      // mock plugin because CI tooling doesn't have python installed
+      // mock python plugin becuase CI tooling doesn't have pipenv installed
       const mockPlugin = {
         async inspect() {
           return {
@@ -175,81 +175,61 @@ export const AllProjectsTests: AcceptanceTests = {
         },
       };
       const loadPlugin = sinon.stub(params.plugins, 'loadPlugin');
+      t.teardown(loadPlugin.restore);
       loadPlugin.withArgs('pip').returns(mockPlugin);
       loadPlugin.callThrough();
 
       await params.cli.monitor('mono-repo-project', {
         allProjects: true,
         detectionDepth: 1,
-        skipUnresolved: true,
       });
+
       // Pop all calls to server and filter out calls to `featureFlag` endpoint
       const [rubyAll, pipAll, npmAll, mavenAll] = params.server
         .popRequests(5)
         .filter((req) => req.url.includes('/monitor/'));
 
-      // Ruby
       await params.cli.monitor('mono-repo-project', {
         file: 'Gemfile.lock',
       });
-      const [requestsRuby] = params.server
-        .popRequests(2)
-        .filter((req) => req.url.includes('/monitor/'));
+      const rubyFile = params.server.popRequest();
 
-      // npm
       await params.cli.monitor('mono-repo-project', {
         file: 'package-lock.json',
       });
-      const [requestsNpm] = params.server
-        .popRequests(2)
-        .filter((req) => req.url.includes('/monitor/'));
+      const npmFile = params.server.popRequest();
 
-      // maven
       await params.cli.monitor('mono-repo-project', {
         file: 'pom.xml',
       });
-      const [requestsMaven] = params.server
-        .popRequests(2)
-        .filter((req) => req.url.includes('/monitor/'));
+      const mavenFile = params.server.popRequest();
 
-      // pip
       await params.cli.monitor('mono-repo-project', {
         file: 'Pipfile',
-        skipUnresolved: true,
       });
-      const [requestsPip] = params.server
-        .popRequests(2)
-        .filter((req) => req.url.includes('/monitor/'));
+      const pipFile = params.server.popRequest();
 
-      // Ruby project
-
-      t.deepEqual(
+      t.same(
         rubyAll.body,
-        requestsRuby.body,
+        rubyFile.body,
         'Same body for --all-projects and --file=Gemfile.lock',
       );
 
-      // NPM project
-
-      t.deepEqual(
+      t.same(
         npmAll.body,
-        requestsNpm.body,
+        npmFile.body,
         'Same body for --all-projects and --file=package-lock.json',
       );
 
-      // Pip project
-
-      t.deepEqual(
+      t.same(
         pipAll.body,
-        requestsPip.body,
+        pipFile.body,
         'Same body for --all-projects and --file=Pipfile',
       );
 
-      // Maven project
-
-      t.deepEqual(
+      t.same(
         mavenAll.body,
-        requestsMaven.body,
+        mavenFile.body,
         'Same body for --all-projects and --file=pom.xml',
       );
     },
@@ -294,7 +274,6 @@ export const AllProjectsTests: AcceptanceTests = {
         const response = await params.cli.monitor('mono-repo-project', {
           json: true,
           allProjects: true,
-          skipUnresolved: true,
         });
         JSON.parse(response).forEach((res) => {
           if (_.isObject(res)) {
@@ -502,8 +481,8 @@ export const AllProjectsTests: AcceptanceTests = {
       t.teardown(loadPlugin.restore);
       loadPlugin.withArgs('golangdep').returns(mockPlugin);
       loadPlugin.withArgs('gomodules').returns(mockPlugin);
-      loadPlugin.withArgs('npm').returns(mockPlugin);
       loadPlugin.withArgs('govendor').returns(mockPlugin);
+      loadPlugin.callThrough(); // don't mock npm plugin
       const result = await params.cli.monitor('mono-repo-go', {
         allProjects: true,
         detectionDepth: 3,

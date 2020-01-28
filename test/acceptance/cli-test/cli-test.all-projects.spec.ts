@@ -11,20 +11,35 @@ export const AllProjectsTests: AcceptanceTests = {
       utils,
     ) => async (t) => {
       utils.chdirWorkspaces();
-      const spyPlugin = sinon.spy(params.plugins, 'loadPlugin');
-      t.teardown(spyPlugin.restore);
+
+      // mock python plugin becuase CI tooling doesn't have pipenv installed
+      const mockPlugin = {
+        async inspect() {
+          return {
+            plugin: {
+              targetFile: 'Pipfile',
+              name: 'snyk-python-plugin',
+            },
+            package: {},
+          };
+        },
+      };
+      const loadPlugin = sinon.stub(params.plugins, 'loadPlugin');
+      t.teardown(loadPlugin.restore);
+      loadPlugin.withArgs('pip').returns(mockPlugin);
+      loadPlugin.callThrough(); // don't mock other plugins
 
       const result = await params.cli.test('mono-repo-project', {
         allProjects: true,
         detectionDepth: 1,
         skipUnresolved: true,
       });
-      t.ok(spyPlugin.withArgs('rubygems').calledOnce, 'calls rubygems plugin');
-      t.ok(spyPlugin.withArgs('npm').calledOnce, 'calls npm plugin');
-      t.ok(spyPlugin.withArgs('maven').calledOnce, 'calls maven plugin');
-      t.ok(spyPlugin.withArgs('pip').calledOnce, 'calls pip plugin');
+      t.ok(loadPlugin.withArgs('rubygems').calledOnce, 'calls rubygems plugin');
+      t.ok(loadPlugin.withArgs('npm').calledOnce, 'calls npm plugin');
+      t.ok(loadPlugin.withArgs('maven').calledOnce, 'calls maven plugin');
+      t.ok(loadPlugin.withArgs('pip').calledOnce, 'calls pip plugin');
 
-      params.server.popRequests(3).forEach((req) => {
+      params.server.popRequests(4).forEach((req) => {
         t.equal(req.method, 'POST', 'makes POST request');
         t.equal(
           req.headers['x-snyk-cli-version'],
@@ -84,13 +99,27 @@ export const AllProjectsTests: AcceptanceTests = {
       utils,
     ) => async (t) => {
       utils.chdirWorkspaces();
-      const spyPlugin = sinon.spy(params.plugins, 'loadPlugin');
-      t.teardown(spyPlugin.restore);
+
+      // mock python plugin becuase CI tooling doesn't have pipenv installed
+      const mockPlugin = {
+        async inspect() {
+          return {
+            plugin: {
+              targetFile: 'Pipfile',
+              name: 'snyk-python-plugin',
+            },
+            package: {},
+          };
+        },
+      };
+      const loadPlugin = sinon.stub(params.plugins, 'loadPlugin');
+      t.teardown(loadPlugin.restore);
+      loadPlugin.withArgs('pip').returns(mockPlugin);
+      loadPlugin.callThrough(); // don't mock other plugins
 
       await params.cli.test('mono-repo-project', {
         allProjects: true,
         detectionDepth: 1,
-        skipUnresolved: true,
       });
       const [
         rubyAllProjectsBody,
@@ -101,7 +130,6 @@ export const AllProjectsTests: AcceptanceTests = {
 
       await params.cli.test('mono-repo-project', {
         file: 'Pipfile',
-        skipUnresolved: true,
       });
       const { body: pipFileBody } = params.server.popRequest();
 
@@ -424,10 +452,8 @@ export const AllProjectsTests: AcceptanceTests = {
       const loadPlugin = sinon.stub(params.plugins, 'loadPlugin');
       t.teardown(loadPlugin.restore);
       // prevent plugin inspect from actually running (requires go to be installed)
-      loadPlugin.withArgs('nuget').returns(mockPlugin);
-      loadPlugin.withArgs('cocoapods').returns(mockPlugin);
-      loadPlugin.withArgs('npm').returns(mockPlugin);
       loadPlugin.withArgs('golangdep').returns(mockPlugin);
+      loadPlugin.callThrough(); // don't mock other plugins
 
       try {
         const res = await params.cli.test('monorepo-with-nuget', {
@@ -546,8 +572,8 @@ export const AllProjectsTests: AcceptanceTests = {
       // prevent plugin inspect from actually running (requires go to be installed)
       loadPlugin.withArgs('golangdep').returns(mockPlugin);
       loadPlugin.withArgs('gomodules').returns(mockPlugin);
-      loadPlugin.withArgs('npm').returns(mockPlugin);
       loadPlugin.withArgs('govendor').returns(mockPlugin);
+      loadPlugin.callThrough(); // don't mock npm plugin
 
       const res = await params.cli.test('mono-repo-go', {
         allProjects: true,
