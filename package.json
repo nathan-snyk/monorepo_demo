@@ -64,7 +64,7 @@
     "ansi-escapes": "3.2.0",
     "chalk": "^2.4.2",
     "cli-spinner": "0.2.10",
-    "configstore": "^3.1.2",
+    "configstore": "^5.0.0",
     "debug": "^3.1.0",
     "diff": "^4.0.1",
     "git-url-parse": "11.1.2",
@@ -97,7 +97,7 @@
     "strip-ansi": "^5.2.0",
     "tempfile": "^2.0.0",
     "then-fs": "^2.0.0",
-    "update-notifier": "^2.5.0",
+    "update-notifier": "^4.0.0",
     "uuid": "^3.3.2",
     "wrap-ansi": "^5.1.0"
   },
