@@ -1,0 +1,24 @@
+apply from: "${rootDir}/gradle/java-defaults.gradle"
+apply plugin: 'java-library'
+apply plugin: 'java-test-fixtures'
+
+description = "Sendgrid API 3.0 Client"
+
+dependencies {
+    implementation(
+            project(':core'),
+            project(":common-api:rest"),
+            project(":common:common-spring"),
+            "io.vavr:vavr",
+            "javax.inject:javax.inject",
+            "org.springframework:spring-context",
+            "com.sendgrid:sendgrid-java",
+            'com.google.guava:guava'
+    )
+
+    testImplementation(
+            testFixtures(project(":common:common-test")),
+            project(":common:common-jackson"),
+            "io.dropwizard:dropwizard-testing"
+    )
+}
