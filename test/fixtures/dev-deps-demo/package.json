@@ -9,7 +9,7 @@
   "author": "Guy Podjarny",
   "license": "private",
   "devDependencies": {
-    "uglify-js": "~2.3.6"
+    "uglify-js": "~2.6.0"
   },
   "dependencies": {
     "qs": "~0.6.0",
