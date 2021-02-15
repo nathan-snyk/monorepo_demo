@@ -38,7 +38,7 @@
     "cookie-session": "1.1.0",
     "downsize": "0.0.8",
     "express": "4.12.4",
-    "express-hbs": "0.8.4",
+    "express-hbs": "1.0.0",
     "extract-zip": "1.0.3",
     "fs-extra": "0.18.4",
     "glob": "4.3.2",
@@ -68,7 +68,7 @@
     "pg": "4.1.1"
   },
   "devDependencies": {
-    "bower": "1.4.1",
+    "bower": "1.7.5",
     "csscomb": "3.0.4",
     "grunt": "0.4.5",
     "grunt-bg-shell": "2.3.1",
